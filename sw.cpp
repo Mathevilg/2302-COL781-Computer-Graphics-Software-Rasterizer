@@ -23,7 +23,7 @@ namespace COL781 {
 		VertexShader Rasterizer::vsIdentity() {
 			return [](const Uniforms &uniforms, const Attribs &in, Attribs &out) {
 				glm::vec4 vertex = in.get<glm::vec4>(0);
-				std::cout << "vs : " << vertex[0] << vertex[1] << vertex[2] << vertex[3] << "\n";
+				// std::cout << "vs : " << vertex[0] << vertex[1] << vertex[2] << vertex[3] << "\n";
 				return vertex;
 			};
 		}
@@ -42,6 +42,17 @@ namespace COL781 {
 				glm::vec4 color = in.get<glm::vec4>(1);
 				out.set<glm::vec4>(0, color);
 				return vertex;
+			};
+		}
+
+		// this vs was to be implemented
+		VertexShader Rasterizer::vsColorTransform(){
+			return [](const Uniforms &uniforms, const Attribs &in, Attribs &out) {
+				glm::vec4 vertex = in.get<glm::vec4>(0);
+				glm::vec4 color = in.get<glm::vec4>(1);
+				out.set<glm::vec4>(0, color);
+				glm::mat4 transform = uniforms.get<glm::mat4>("transform");
+				return transform * vertex;
 			};
 		}
 
@@ -136,14 +147,16 @@ namespace COL781 {
 
 		// Creates a window with the given title, size, and samples per pixel.
 		bool Rasterizer::initialize(const std::string &title, int width, int height, int spp){
-			int screenWidth = width * spp;
-			int screenHeight = height * spp;
+			int screenWidth = width;
+			int screenHeight = height;
+			supersampling_n = spp;
 			window = SDL_CreateWindow(title.c_str(), SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, screenWidth, screenHeight, SDL_WINDOW_SHOWN);
 			if (window == NULL) {
 				printf("Window could not be created! SDL_Error: %s", SDL_GetError());
 				return false;
 			}
 			quit = false;
+			zbuffering = false;
 			return true;
 		}
 		
@@ -209,6 +222,13 @@ namespace COL781 {
                     pixels[i + width*j] = colorij;
                 }
             }
+
+			// clear the z buffer as well
+			for (int i=0; i<width; i++){
+				for (int j=0; j<height; j++){
+					zbuffer[i][j]=FLT_MAX;				
+				}
+			}
 			// SDL_BlitScaled(framebuffer, NULL, windowSurface, NULL);
             // SDL_UpdateWindowSurface(window);
 		}
@@ -219,10 +239,44 @@ namespace COL781 {
 			return;
 		}
 
+		template <> void Rasterizer::setUniform(ShaderProgram &program, const std::string &name, glm::vec2 value){
+			program.uniforms.set(name, value);
+			rasterizerProgram = program;
+		}
+		template <> void Rasterizer::setUniform(ShaderProgram &program, const std::string &name, glm::vec3 value){
+			program.uniforms.set(name, value);
+			rasterizerProgram = program;
+		}
 		template <> void Rasterizer::setUniform(ShaderProgram &program, const std::string &name, glm::vec4 value){
 			program.uniforms.set(name, value);
 			rasterizerProgram = program;
 		}
+		template <> void Rasterizer::setUniform(ShaderProgram &program, const std::string &name, glm::mat2 value){
+			program.uniforms.set(name, value);
+			rasterizerProgram = program;
+		}
+		template <> void Rasterizer::setUniform(ShaderProgram &program, const std::string &name, glm::mat3 value){
+			program.uniforms.set(name, value);
+			rasterizerProgram = program;
+		}
+		template <> void Rasterizer::setUniform(ShaderProgram &program, const std::string &name, glm::mat4 value){
+			program.uniforms.set(name, value);
+			rasterizerProgram = program;
+		}
+		template <> void Rasterizer::setUniform(ShaderProgram &program, const std::string &name, float value){
+			program.uniforms.set(name, value);
+			rasterizerProgram = program;
+		}
+		template <> void Rasterizer::setUniform(ShaderProgram &program, const std::string &name, int value){
+			program.uniforms.set(name, value);
+			rasterizerProgram = program;
+		}
+
+		// template <typename T> void setUniform(ShaderProgram &program, const std::string &name, T value){
+		// 	program.uniforms.set(name, value);
+		// 	rasterizerProgram = program;
+		// }
+
 
 		// 
 		void Rasterizer::drawObject(const Object &object){
@@ -238,7 +292,7 @@ namespace COL781 {
 				v1_index = triangle.x;
 				v2_index = triangle.y;
 				v3_index = triangle.z;
-				std::cout<<v1_index<<v2_index<<v3_index<<"\n";
+				// std::cout<<v1_index<<v2_index<<v3_index<<"\n";
 				Attribs v1, v2, v3;
 				for (int i = 0; i<object.attributeDims.size(); i++){
 					int dim = object.attributeDims[i];
@@ -257,7 +311,7 @@ namespace COL781 {
 							v2.set(i, glm::vec3(val[3*v2_index], val[3*v2_index+1], val[3*v2_index+2]));
 							v3.set(i, glm::vec3(val[3*v3_index], val[3*v3_index+1], val[3*v3_index+2]));
 						case 4:
-							std::cout << "case4\n";
+							// std::cout << "case4\n";
 							// std::cout << val[4*v1_index] << val[4*v1_index+1] << val[4*v1_index+2] << val[4*v1_index+3] << "\n";
 							v1.set(i, glm::vec4(val[4*v1_index], val[4*v1_index+1], val[4*v1_index+2], val[4*v1_index+3]));
 							v2.set(i, glm::vec4(val[4*v2_index], val[4*v2_index+1], val[4*v2_index+2], val[4*v2_index+3]));
@@ -271,55 +325,125 @@ namespace COL781 {
 				v1_ndc = rasterizerProgram.vs(rasterizerProgram.uniforms, v1, v1_out);
 				v2_ndc = rasterizerProgram.vs(rasterizerProgram.uniforms, v2, v2_out);
 				v3_ndc = rasterizerProgram.vs(rasterizerProgram.uniforms, v3, v3_out);
-				std::cout<<"here1\n";
+
+
+				// To support 3D tringles, we include the perspective division stage after the vertex shader
+				// v1_out = glm::vec4(v1_ndc[0]/v1_ndc[3], )
+				v1_ndc = glm::vec4(v1_ndc[0]/v1_ndc[3], v1_ndc[1]/v1_ndc[3], v1_ndc[2]/v1_ndc[3], 1.0);
+				v2_ndc = glm::vec4(v2_ndc[0]/v2_ndc[3], v2_ndc[1]/v2_ndc[3], v2_ndc[2]/v2_ndc[3], 1.0);
+				v3_ndc = glm::vec4(v3_ndc[0]/v3_ndc[3], v3_ndc[1]/v3_ndc[3], v3_ndc[2]/v3_ndc[3], 1.0);
+
+				// std::cout<<"here1\n";
 				glm::vec4 v1_col, v2_col, v3_col;
 				v1_col = rasterizerProgram.fs(rasterizerProgram.uniforms, v1_out);
 				v2_col = rasterizerProgram.fs(rasterizerProgram.uniforms, v2_out);
 				v3_col = rasterizerProgram.fs(rasterizerProgram.uniforms, v3_out);
 
-				double x1,y1,x2,y2,x3,y3;
+				float x1,y1,x2,y2,x3,y3;
 				x1 = v1_ndc[0];
 				y1 = v1_ndc[1];
 				x2 = v2_ndc[0];
 				y2 = v2_ndc[1];
 				x3 = v3_ndc[0];
 				y3 = v3_ndc[1];
-				std::cout << v1_ndc[0] <<" "<<v1_ndc[1]<<" " <<v2_ndc[0]<<" "<<v1_ndc[1]<<" "<<x3<<" "<<y3<<"\n";
+
+				// for z buffering
+				float z1, z2, z3;
+				z1 = v1_ndc[2];
+				z2 = v2_ndc[2];
+				z3 = v3_ndc[2];
+
+				// std::cout << v1_ndc[0] <<" "<<v1_ndc[1]<<" " <<v2_ndc[0]<<" "<<v1_ndc[1]<<" "<<x3<<" "<<y3<<"\n";
 				float c_left_or_right = (-(y2-y1)*(x3-x1)+(x2-x1)*(y3-y1));
 				for (int i = 0; i < width; i++) {
 					for (int j = 0; j < height; j++) {
 						// glm::vec4 = glm::cross(v1_ndc-v2_ndc,v3_ndc-v2_ndc);
-						float x = (i + 0.5)/width;  // [0, w] -> [0, 1]
-						x = 2*x - 1;                     // [0, 1] -> [-1, 1]
-						float y = (j + 0.5)/height; // [0, h] -> [0, 1]
-						y = 1 - 2*y;                     // [0, 1] -> [1, -1]
-						// Uint32 colorij = SDL_MapRGBA(format, v1_col[0]*255, v1_col[1]*255, v1_col[2]*255, v1_col[3]*255); 
-						if (c_left_or_right>=0) {
-							if (-(y2-y1)*(x-x1)+(x2-x1)*(y-y1)>=0 && -(y3-y2)*(x-x2)+(x3-x2)*(y-y2)>=0 && -(y1-y3)*(x-x3)+(x1-x3)*(y-y3)>=0){
-								float total = glm::length(glm::cross(glm::vec3(v1_ndc[0]-v2_ndc[0], v1_ndc[1]-v2_ndc[1],0), glm::vec3(v3_ndc[0]-v2_ndc[0], v3_ndc[1]-v2_ndc[1],0)));
-								float bary_1 = glm::length(glm::cross(glm::vec3(v2_ndc[0]-x, v2_ndc[1]-y,0), glm::vec3(v3_ndc[0]-x, v3_ndc[1]-y,0)))/total;
-								float bary_2 = glm::length(glm::cross(glm::vec3(v3_ndc[0]-x, v3_ndc[1]-y,0), glm::vec3(v1_ndc[0]-x, v1_ndc[1]-y,0)))/total;
-								float bary_3 = glm::length(glm::cross(glm::vec3(v1_ndc[0]-x, v1_ndc[1]-y,0), glm::vec3(v2_ndc[0]-x, v2_ndc[1]-y,0)))/total;
-								// std::cout << "BARRRYY : " << bary_1+bary_2+bary_3 << "\n";	
+						// float total = 0;
+						// if zbuffer[i][j]
+
+
+						float x = (i + 0.5 )/width;
+						float y = (j + 0.5  )/height;
+						x = 2*x-1;
+						y = 1 - 2*y;
+						float bary_1 = 0.;
+						float bary_2 = 0.;
+						float bary_3 = 0.;
+						if ((c_left_or_right>=0 && (-(y2-y1)*(x-x1)+(x2-x1)*(y-y1)>=0 && -(y3-y2)*(x-x2)+(x3-x2)*(y-y2)>=0 && -(y1-y3)*(x-x3)+(x1-x3)*(y-y3)>=0)) || (c_left_or_right<0 && (-(y2-y1)*(x-x1)+(x2-x1)*(y-y1)<=0 && -(y3-y2)*(x-x2)+(x3-x2)*(y-y2)<=0 && -(y1-y3)*(x-x3)+(x1-x3)*(y-y3)<=0)))
+						{
+							for (int k=0; k<sqrt(supersampling_n); k++){
+								for (int l=0; l<sqrt(supersampling_n); l++) {
+									float xi = (i + 0.5 + (float)k/(float)sqrt(supersampling_n) - 0.5)/width;
+									float yi = (j + 0.5 + (float)l/(float)sqrt(supersampling_n) - 0.5)/height;
+									xi = 2*xi-1;
+									yi = 1 - 2*yi;
+									if ((c_left_or_right>=0 && (-(y2-y1)*(xi-x1)+(x2-x1)*(yi-y1)>=0 && -(y3-y2)*(xi-x2)+(x3-x2)*(yi-y2)>=0 && -(y1-y3)*(xi-x3)+(x1-x3)*(yi-y3)>=0)) || 
+									(c_left_or_right<0 && (-(y2-y1)*(xi-x1)+(x2-x1)*(yi-y1)<=0 && -(y3-y2)*(xi-x2)+(x3-x2)*(yi-y2)<=0 && -(y1-y3)*(xi-x3)+(x1-x3)*(yi-y3)<=0))){
+									// std::cout << "X Y " << xi << " " << yi << "\n";
+									float total = glm::length(glm::cross(glm::vec3(v1_ndc[0]-v2_ndc[0], v1_ndc[1]-v2_ndc[1],0), glm::vec3(v3_ndc[0]-v2_ndc[0], v3_ndc[1]-v2_ndc[1],0)));
+									bary_1 += glm::length(glm::cross(glm::vec3(v2_ndc[0]-xi, v2_ndc[1]-yi,0), glm::vec3(v3_ndc[0]-xi, v3_ndc[1]-yi,0)))/total;
+									bary_2 += glm::length(glm::cross(glm::vec3(v3_ndc[0]-xi, v3_ndc[1]-yi,0), glm::vec3(v1_ndc[0]-xi, v1_ndc[1]-yi,0)))/total;
+									bary_3 += glm::length(glm::cross(glm::vec3(v1_ndc[0]-xi, v1_ndc[1]-yi,0), glm::vec3(v2_ndc[0]-xi, v2_ndc[1]-yi,0)))/total;
+								// float total = glm::length(glm::cross(glm::vec3(v1_ndc[0]-v2_ndc[0], v1_ndc[1]-v2_ndc[1],0), glm::vec3(v3_ndc[0]-v2_ndc[0], v3_ndc[1]-v2_ndc[1],0)));
+								// bary_1 = bary_1 + glm::length(glm::cross(glm::vec3(v2_ndc[0]-x, v2_ndc[1]-y,0), glm::vec3(v3_ndc[0]-x, v3_ndc[1]-y,0)))/total;
+								// bary_2 = bary_2 + glm::length(glm::cross(glm::vec3(v3_ndc[0]-x, v3_ndc[1]-y,0), glm::vec3(v1_ndc[0]-x, v1_ndc[1]-y,0)))/total;
+								// bary_3 = bary_3 + glm::length(glm::cross(glm::vec3(v1_ndc[0]-x, v1_ndc[1]-y,0), glm::vec3(v2_ndc[0]-x, v2_ndc[1]-y,0)))/total;
+
+									}
+								}
+							}
+							bary_1 = bary_1/(float)supersampling_n;
+							bary_2 = bary_2/(float)supersampling_n;
+							bary_3 = bary_3/(float)supersampling_n;
+							std::cout << "Barry : " << bary_1 << " " << bary_2 << " "<< bary_3 << "\n";
+							float z_curr = bary_1*z1 + bary_2*z2 + bary_3*z3;
+							if (zbuffering){
+								// std::cout << "zbuff\n";
+								if (z_curr<=zbuffer[i][j]) {
+									zbuffer[i][j] = z_curr;
+									pixels[i + width*j] = SDL_MapRGBA(format, (bary_1*v1_col[0] + bary_2*v2_col[0] + bary_3*v3_col[0])*255, (bary_1*v1_col[1] + bary_2*v2_col[1] + bary_3*v3_col[1])*255, (bary_1*v1_col[2] + bary_2*v2_col[2] + bary_3*v3_col[2])*255, (bary_1*v1_col[3] + bary_2*v2_col[3] + bary_3*v3_col[3])*255);
+								}
+								else {continue;}
+							}
+							else {
 								pixels[i + width*j] = SDL_MapRGBA(format, (bary_1*v1_col[0] + bary_2*v2_col[0] + bary_3*v3_col[0])*255, (bary_1*v1_col[1] + bary_2*v2_col[1] + bary_3*v3_col[1])*255, (bary_1*v1_col[2] + bary_2*v2_col[2] + bary_3*v3_col[2])*255, (bary_1*v1_col[3] + bary_2*v2_col[3] + bary_3*v3_col[3])*255);
-							} 
+							}
+							
+
 						}
-						else {
-							if (-(y2-y1)*(x-x1)+(x2-x1)*(y-y1)<=0 && -(y3-y2)*(x-x2)+(x3-x2)*(y-y2)<=0 && -(y1-y3)*(x-x3)+(x1-x3)*(y-y3)<=0){
-								float total = glm::length(glm::cross(glm::vec3(v1_ndc[0]-v2_ndc[0], v1_ndc[1]-v2_ndc[1],0), glm::vec3(v3_ndc[0]-v2_ndc[0], v3_ndc[1]-v2_ndc[1],0)));
-								float bary_1 = glm::length(glm::cross(glm::vec3(v2_ndc[0]-x, v2_ndc[1]-y,0), glm::vec3(v3_ndc[0]-x, v3_ndc[1]-y,0)))/total;
-								float bary_2 = glm::length(glm::cross(glm::vec3(v3_ndc[0]-x, v3_ndc[1]-y,0), glm::vec3(v1_ndc[0]-x, v1_ndc[1]-y,0)))/total;
-								float bary_3 = glm::length(glm::cross(glm::vec3(v1_ndc[0]-x, v1_ndc[1]-y,0), glm::vec3(v2_ndc[0]-x, v2_ndc[1]-y,0)))/total;
-								// std::cout << "BARRRYY : " << bary_1+bary_2+bary_3 << "\n";	
-								pixels[i + width*j] = SDL_MapRGBA(format, (bary_1*v1_col[0] + bary_2*v2_col[0] + bary_3*v3_col[0])*255, (bary_1*v1_col[1] + bary_2*v2_col[1] + bary_3*v3_col[1])*255, (bary_1*v1_col[2] + bary_2*v2_col[2] + bary_3*v3_col[2])*255, (bary_1*v1_col[3] + bary_2*v2_col[3] + bary_3*v3_col[3])*255);
-							} 
-						}
+						
+						// std::cout << "Barry : " << bary_1 << " " << bary_2 << " "<< bary_3 << "\n";
+						// float x = (i + 0.5)/width;  // [0, w] -> [0, 1]
+						// x = 2*x - 1;                     // [0, 1] -> [-1, 1]
+						// float y = (j + 0.5)/height; // [0, h] -> [0, 1]
+						// y = 1 - 2*y;                     // [0, 1] -> [1, -1]
+						// // Uint32 colorij = SDL_MapRGBA(format, v1_col[0]*255, v1_col[1]*255, v1_col[2]*255, v1_col[3]*255); 
+						// if (c_left_or_right>=0) {
+						// 	if (-(y2-y1)*(x-x1)+(x2-x1)*(y-y1)>=0 && -(y3-y2)*(x-x2)+(x3-x2)*(y-y2)>=0 && -(y1-y3)*(x-x3)+(x1-x3)*(y-y3)>=0){
+						// 		float total = glm::length(glm::cross(glm::vec3(v1_ndc[0]-v2_ndc[0], v1_ndc[1]-v2_ndc[1],0), glm::vec3(v3_ndc[0]-v2_ndc[0], v3_ndc[1]-v2_ndc[1],0)));
+						// 		float bary_1 = glm::length(glm::cross(glm::vec3(v2_ndc[0]-x, v2_ndc[1]-y,0), glm::vec3(v3_ndc[0]-x, v3_ndc[1]-y,0)))/total;
+						// 		float bary_2 = glm::length(glm::cross(glm::vec3(v3_ndc[0]-x, v3_ndc[1]-y,0), glm::vec3(v1_ndc[0]-x, v1_ndc[1]-y,0)))/total;
+						// 		float bary_3 = glm::length(glm::cross(glm::vec3(v1_ndc[0]-x, v1_ndc[1]-y,0), glm::vec3(v2_ndc[0]-x, v2_ndc[1]-y,0)))/total;
+						// 		// std::cout << "BARRRYY : " << bary_1+bary_2+bary_3 << "\n";	
+						// 		pixels[i + width*j] = SDL_MapRGBA(format, (bary_1*v1_col[0] + bary_2*v2_col[0] + bary_3*v3_col[0])*255, (bary_1*v1_col[1] + bary_2*v2_col[1] + bary_3*v3_col[1])*255, (bary_1*v1_col[2] + bary_2*v2_col[2] + bary_3*v3_col[2])*255, (bary_1*v1_col[3] + bary_2*v2_col[3] + bary_3*v3_col[3])*255);
+						// 	} 
+						// }
+						// else {
+						// 	if (-(y2-y1)*(x-x1)+(x2-x1)*(y-y1)<=0 && -(y3-y2)*(x-x2)+(x3-x2)*(y-y2)<=0 && -(y1-y3)*(x-x3)+(x1-x3)*(y-y3)<=0){
+						// 		float total = glm::length(glm::cross(glm::vec3(v1_ndc[0]-v2_ndc[0], v1_ndc[1]-v2_ndc[1],0), glm::vec3(v3_ndc[0]-v2_ndc[0], v3_ndc[1]-v2_ndc[1],0)));
+						// 		float bary_1 = glm::length(glm::cross(glm::vec3(v2_ndc[0]-x, v2_ndc[1]-y,0), glm::vec3(v3_ndc[0]-x, v3_ndc[1]-y,0)))/total;
+						// 		float bary_2 = glm::length(glm::cross(glm::vec3(v3_ndc[0]-x, v3_ndc[1]-y,0), glm::vec3(v1_ndc[0]-x, v1_ndc[1]-y,0)))/total;
+						// 		float bary_3 = glm::length(glm::cross(glm::vec3(v1_ndc[0]-x, v1_ndc[1]-y,0), glm::vec3(v2_ndc[0]-x, v2_ndc[1]-y,0)))/total;
+						// 		// std::cout << "BARRRYY : " << bary_1+bary_2+bary_3 << "\n";	
+						// 		pixels[i + width*j] = SDL_MapRGBA(format, (bary_1*v1_col[0] + bary_2*v2_col[0] + bary_3*v3_col[0])*255, (bary_1*v1_col[1] + bary_2*v2_col[1] + bary_3*v3_col[1])*255, (bary_1*v1_col[2] + bary_2*v2_col[2] + bary_3*v3_col[2])*255, (bary_1*v1_col[3] + bary_2*v2_col[3] + bary_3*v3_col[3])*255);
+						// 	} 
+						// }
 						
 					}
 				}
 			}
-				SDL_BlitScaled(framebuffer, NULL, windowSurface, NULL);
-				SDL_UpdateWindowSurface(window);
+			// SDL_BlitScaled(framebuffer, NULL, windowSurface, NULL);
+			// SDL_UpdateWindowSurface(window);
 			return;
 		}
 
@@ -343,6 +467,21 @@ namespace COL781 {
 			return;
 		}
 
-
+		// Enable depth testing.
+		void Rasterizer::enableDepthTest(){
+			int width, height;
+    		SDL_GetWindowSize(window, &width, &height);
+			// std::cout << "width height" << width << " " << height << "\n";
+			for (int i=0; i<width; i++){
+				std::vector<float> v;
+				for (int j=0; j<height; j++){
+					v.push_back(FLT_MAX);
+					// std::cout << v[j] << "\n";
+				}
+				zbuffer.push_back(v);
+			}
+			zbuffering = true;
+			// std::cout << "enabled\n";
+		}
 	}
 }
