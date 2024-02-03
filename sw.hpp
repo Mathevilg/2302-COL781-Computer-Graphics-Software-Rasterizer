@@ -63,6 +63,9 @@ namespace COL781 {
 			SDL_Surface *framebuffer;
 			bool quit;
 			ShaderProgram rasterizerProgram;
+			int supersampling_n;
+			std::vector<std::vector<float>> zbuffer;
+			bool zbuffering;
 		};
 
 	}
