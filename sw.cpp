@@ -224,9 +224,11 @@ namespace COL781 {
             }
 
 			// clear the z buffer as well
-			for (int i=0; i<width; i++){
-				for (int j=0; j<height; j++){
-					zbuffer[i][j]=FLT_MAX;				
+			if (zbuffering){
+				for (int i=1; i<width; i++){
+					for (int j=0; j<height; j++){
+						zbuffer[i][j]=FLT_MAX;				
+					}
 				}
 			}
 			// SDL_BlitScaled(framebuffer, NULL, windowSurface, NULL);
@@ -333,6 +335,13 @@ namespace COL781 {
 				v2_ndc = glm::vec4(v2_ndc[0]/v2_ndc[3], v2_ndc[1]/v2_ndc[3], v2_ndc[2]/v2_ndc[3], 1.0);
 				v3_ndc = glm::vec4(v3_ndc[0]/v3_ndc[3], v3_ndc[1]/v3_ndc[3], v3_ndc[2]/v3_ndc[3], 1.0);
 
+				// for z buffering
+				float z1, z2, z3;
+				z1 = v1_ndc[2];
+				z2 = v2_ndc[2];
+				z3 = v3_ndc[2];
+				// std::cout << "z value " << z1 << " " << z2 << " " << z3 << "\n";
+
 				// std::cout<<"here1\n";
 				glm::vec4 v1_col, v2_col, v3_col;
 				v1_col = rasterizerProgram.fs(rasterizerProgram.uniforms, v1_out);
@@ -347,11 +356,6 @@ namespace COL781 {
 				x3 = v3_ndc[0];
 				y3 = v3_ndc[1];
 
-				// for z buffering
-				float z1, z2, z3;
-				z1 = v1_ndc[2];
-				z2 = v2_ndc[2];
-				z3 = v3_ndc[2];
 
 				// std::cout << v1_ndc[0] <<" "<<v1_ndc[1]<<" " <<v2_ndc[0]<<" "<<v1_ndc[1]<<" "<<x3<<" "<<y3<<"\n";
 				float c_left_or_right = (-(y2-y1)*(x3-x1)+(x2-x1)*(y3-y1));
@@ -373,8 +377,8 @@ namespace COL781 {
 						{
 							for (int k=0; k<sqrt(supersampling_n); k++){
 								for (int l=0; l<sqrt(supersampling_n); l++) {
-									float xi = (i + 0.5 + (float)k/(float)sqrt(supersampling_n) - 0.5)/width;
-									float yi = (j + 0.5 + (float)l/(float)sqrt(supersampling_n) - 0.5)/height;
+									float xi = (i + 0.5 + (float)k/(float)sqrt(supersampling_n))/width;
+									float yi = (j + 0.5 + (float)l/(float)sqrt(supersampling_n))/height;
 									xi = 2*xi-1;
 									yi = 1 - 2*yi;
 									if ((c_left_or_right>=0 && (-(y2-y1)*(xi-x1)+(x2-x1)*(yi-y1)>=0 && -(y3-y2)*(xi-x2)+(x3-x2)*(yi-y2)>=0 && -(y1-y3)*(xi-x3)+(x1-x3)*(yi-y3)>=0)) || 
@@ -395,19 +399,21 @@ namespace COL781 {
 							bary_1 = bary_1/(float)supersampling_n;
 							bary_2 = bary_2/(float)supersampling_n;
 							bary_3 = bary_3/(float)supersampling_n;
-							std::cout << "Barry : " << bary_1 << " " << bary_2 << " "<< bary_3 << "\n";
+							if (bary_1==0.0 || bary_2==0.0 || bary_3==0.0){bary_1=1.0; bary_2=0.0; bary_3=0.0;}
+							// std::cout << "Barry : " << bary_1 << " " << bary_2 << " "<< bary_3 << "\n";
 							float z_curr = bary_1*z1 + bary_2*z2 + bary_3*z3;
 							if (zbuffering){
 								// std::cout << "zbuff\n";
 								if (z_curr<=zbuffer[i][j]) {
 									zbuffer[i][j] = z_curr;
-									pixels[i + width*j] = SDL_MapRGBA(format, (bary_1*v1_col[0] + bary_2*v2_col[0] + bary_3*v3_col[0])*255, (bary_1*v1_col[1] + bary_2*v2_col[1] + bary_3*v3_col[1])*255, (bary_1*v1_col[2] + bary_2*v2_col[2] + bary_3*v3_col[2])*255, (bary_1*v1_col[3] + bary_2*v2_col[3] + bary_3*v3_col[3])*255);
+									pixels[i + width*j] = SDL_MapRGBA(format, ((bary_1*v1_col[0] + bary_2*v2_col[0] + bary_3*v3_col[0])/(bary_1 + bary_2 + bary_3))*255, ((bary_1*v1_col[1] + bary_2*v2_col[1] + bary_3*v3_col[1])/(bary_1 + bary_2 + bary_3))*255, ((bary_1*v1_col[2] + bary_2*v2_col[2] + bary_3*v3_col[2])/(bary_1 + bary_2 + bary_3))*255, ((bary_1*v1_col[3] + bary_2*v2_col[3] + bary_3*v3_col[3])/(bary_1 + bary_2 + bary_3))*255);
 								}
 								else {continue;}
 							}
 							else {
-								pixels[i + width*j] = SDL_MapRGBA(format, (bary_1*v1_col[0] + bary_2*v2_col[0] + bary_3*v3_col[0])*255, (bary_1*v1_col[1] + bary_2*v2_col[1] + bary_3*v3_col[1])*255, (bary_1*v1_col[2] + bary_2*v2_col[2] + bary_3*v3_col[2])*255, (bary_1*v1_col[3] + bary_2*v2_col[3] + bary_3*v3_col[3])*255);
-							}
+								// pixels[i + width*j] = SDL_MapRGBA(format, ((bary_1*v1_col[0]/z1 + bary_2*v2_col[0]/z2 + bary_3*v3_col[0]/z3)/(bary_1/z1 + bary_2/z2 + bary_3/z3))*255, ((bary_1*v1_col[1]/z1 + bary_2*v2_col[1]/z2 + bary_3*v3_col[1]/z3)/(bary_1/z1 + bary_2/z2 + bary_3/z3))*255, ((bary_1*v1_col[2]/z1 + bary_2*v2_col[2]/z2 + bary_3*v3_col[2]/z3)/(bary_1/z1 + bary_2/z2 + bary_3/z3))*255, ((bary_1*v1_col[3]/z1 + bary_2*v2_col[3]/z2 + bary_3*v3_col[3]/z3)/(bary_1/z1 + bary_2/z2 + bary_3/z3))*255);
+								pixels[i + width*j] = SDL_MapRGBA(format, ((bary_1*v1_col[0] + bary_2*v2_col[0] + bary_3*v3_col[0])/(bary_1 + bary_2 + bary_3))*255, ((bary_1*v1_col[1] + bary_2*v2_col[1] + bary_3*v3_col[1])/(bary_1 + bary_2 + bary_3))*255, ((bary_1*v1_col[2] + bary_2*v2_col[2] + bary_3*v3_col[2])/(bary_1 + bary_2 + bary_3))*255, ((bary_1*v1_col[3] + bary_2*v2_col[3] + bary_3*v3_col[3])/(bary_1 + bary_2 + bary_3))*255);
+}
 							
 
 						}
