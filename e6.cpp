@@ -7,7 +7,7 @@
 namespace R = COL781::Hardware;
 using namespace glm;
 
-void create5MinuteSymbol(int minute, R::Rasterizer &r, R::ShaderProgram &program, R::Object &shape) {
+void createMinuteSymbol(int minute, R::Rasterizer &r, R::ShaderProgram &program, R::Object &shape) {
         mat4 model = mat4(0.02f, 0.0f,  0.0f, 0.0f,
                           0.0f,  0.05f, 0.0f, 0.0f,
                           0.0f,  0.0f,  1.0f, 0.0f,
@@ -112,7 +112,7 @@ int main() {
                 createHourSymbol(i/5, r, program, shape);
             }
             else{
-                create5MinuteSymbol(i, r, program, shape);
+                createMinuteSymbol(i, r, program, shape);
             }
         }
 
