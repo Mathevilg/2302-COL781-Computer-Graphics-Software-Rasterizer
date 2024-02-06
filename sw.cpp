@@ -371,8 +371,9 @@ namespace COL781 {
 
 				// To support 3D tringles, we include the perspective division stage after the vertex shader
 				// v1_out = glm::vec4(v1_ndc[0]/v1_ndc[3], )
-				// float w1,w2,w3; w1=v1_ndc[3]; w1=v2_ndc[3]; w1=v3_ndc[3];
+				float w1,w2,w3; w1=v1_ndc[3]; w1=v2_ndc[3]; w1=v3_ndc[3];
 				// std::cout << w1 << " " << w2 << " " << w3 << "\n";
+				float z_1,z_2,z_3; z_1 = v1_ndc[2]+0.000001; z_2=v2_ndc[2]+0.000001; z_3=v3_ndc[2]+0.000001;
 				v1_ndc = glm::vec4(v1_ndc[0]/v1_ndc[3], v1_ndc[1]/v1_ndc[3], v1_ndc[2]/v1_ndc[3], 1.0);
 				v2_ndc = glm::vec4(v2_ndc[0]/v2_ndc[3], v2_ndc[1]/v2_ndc[3], v2_ndc[2]/v2_ndc[3], 1.0);
 				v3_ndc = glm::vec4(v3_ndc[0]/v3_ndc[3], v3_ndc[1]/v3_ndc[3], v3_ndc[2]/v3_ndc[3], 1.0);
@@ -446,15 +447,17 @@ namespace COL781 {
 							if (bary_1==0.0 || bary_2==0.0 || bary_3==0.0){bary_1=1.0; bary_2=0.0; bary_3=0.0;}
 							// std::cout << "Barry : " << bary_1 << " " << bary_2 << " "<< bary_3 << "\n";
 							float z_curr = bary_1*z1 + bary_2*z2 + bary_3*z3;
-							// std::cout << "z value " << z1 << " " << z2 << " " << z3 << "\n";
+							// std::cout << "z value " << z_1 << " " << z_2 << " " << z_3 << "\n";
 							if (zbuffering){
 								// std::cout << "zbuff\n";
 								if (z_curr<=zbuffer[i][j]) {
 									zbuffer[i][j] = z_curr;
 									// std::cout<< ((bary_1*v1_col[0]/z1 + bary_2*v2_col[0]/z2 + bary_3*v3_col[0]/z3)/(bary_1/z1 + bary_2/z2 + bary_3/z3))*255<<" "<< ((bary_1*v1_col[1]/z1 + bary_2*v2_col[1]/z2 + bary_3*v3_col[1]/z3)/(bary_1/z1 + bary_2/z2 + bary_3/z3))*255<<" "<< ((bary_1*v1_col[2]/z1 + bary_2*v2_col[2]/z2 + bary_3*v3_col[2]/z3)/(bary_1/z1 + bary_2/z2 + bary_3/z3))*255<<" "<< ((bary_1*v1_col[3]/z1 + bary_2*v2_col[3]/z2 + bary_3*v3_col[3]/z3)/(bary_1/z1 + bary_2/z2 + bary_3/z3))*255 << "\n";
 									// std::cout<< ((bary_1*v1_col[0] + bary_2*v2_col[0] + bary_3*v3_col[0])/(bary_1 + bary_2 + bary_3))*255 << " " <<  ((bary_1*v1_col[1] + bary_2*v2_col[1] + bary_3*v3_col[1])/(bary_1 + bary_2 + bary_3))*255 << " " << ((bary_1*v1_col[2] + bary_2*v2_col[2] + bary_3*v3_col[2])/(bary_1 + bary_2 + bary_3))*255 << " " << ((bary_1*v1_col[3] + bary_2*v2_col[3] + bary_3*v3_col[3])/(bary_1 + bary_2 + bary_3))*255 << "\n\n";
-									pixels[i + width*j] = SDL_MapRGBA(format, ((bary_1*v1_col[0] + bary_2*v2_col[0] + bary_3*v3_col[0])/(bary_1 + bary_2 + bary_3))*255, ((bary_1*v1_col[1] + bary_2*v2_col[1] + bary_3*v3_col[1])/(bary_1 + bary_2 + bary_3))*255, ((bary_1*v1_col[2] + bary_2*v2_col[2] + bary_3*v3_col[2])/(bary_1 + bary_2 + bary_3))*255, ((bary_1*v1_col[3] + bary_2*v2_col[3] + bary_3*v3_col[3])/(bary_1 + bary_2 + bary_3))*255);
+									// pixels[i + width*j] = SDL_MapRGBA(format, ((bary_1*v1_col[0] + bary_2*v2_col[0] + bary_3*v3_col[0])/(bary_1 + bary_2 + bary_3))*255, ((bary_1*v1_col[1] + bary_2*v2_col[1] + bary_3*v3_col[1])/(bary_1 + bary_2 + bary_3))*255, ((bary_1*v1_col[2] + bary_2*v2_col[2] + bary_3*v3_col[2])/(bary_1 + bary_2 + bary_3))*255, ((bary_1*v1_col[3] + bary_2*v2_col[3] + bary_3*v3_col[3])/(bary_1 + bary_2 + bary_3))*255);
 									// pixels[i + width*j] = SDL_MapRGBA(format, ((bary_1*v1_col[0]/z1 + bary_2*v2_col[0]/z2 + bary_3*v3_col[0]/z3)/(bary_1/z1 + bary_2/z2 + bary_3/z3))*255, ((bary_1*v1_col[1]/z1 + bary_2*v2_col[1]/z2 + bary_3*v3_col[1]/z3)/(bary_1/z1 + bary_2/z2 + bary_3/z3))*255, ((bary_1*v1_col[2]/z1 + bary_2*v2_col[2]/z2 + bary_3*v3_col[2]/z3)/(bary_1/z1 + bary_2/z2 + bary_3/z3))*255, ((bary_1*v1_col[3]/z1 + bary_2*v2_col[3]/z2 + bary_3*v3_col[3]/z3)/(bary_1/z1 + bary_2/z2 + bary_3/z3))*255);
+									pixels[i + width*j] = SDL_MapRGBA(format, ((bary_1*v1_col[0]/z_1 + bary_2*v2_col[0]/z_2 + bary_3*v3_col[0]/z_3)/(bary_1/z_1 + bary_2/z_2 + bary_3/z_3))*255, ((bary_1*v1_col[1]/z_1 + bary_2*v2_col[1]/z_2 + bary_3*v3_col[1]/z_3)/(bary_1/z_1 + bary_2/z_2 + bary_3/z_3))*255, ((bary_1*v1_col[2]/z_1 + bary_2*v2_col[2]/z_2 + bary_3*v3_col[2]/z_3)/(bary_1/z_1 + bary_2/z_2 + bary_3/z_3))*255, ((bary_1*v1_col[3]/z_1 + bary_2*v2_col[3]/z_2 + bary_3*v3_col[3]/z_3)/(bary_1/z_1 + bary_2/z_2 + bary_3/z_3))*255);
+									// pixels[i + width*j] = SDL_MapRGBA(format, ((bary_1*v1_col[0]/w1 + bary_2*v2_col[0]/w2 + bary_3*v3_col[0]/w3)/(bary_1/w1 + bary_2/w2 + bary_3/w3))*255, ((bary_1*v1_col[1]/w1 + bary_2*v2_col[1]/w2 + bary_3*v3_col[1]/w3)/(bary_1/w1 + bary_2/w2 + bary_3/w3))*255, ((bary_1*v1_col[2]/w1 + bary_2*v2_col[2]/w2 + bary_3*v3_col[2]/w3)/(bary_1/w1 + bary_2/w2 + bary_3/w3))*255, ((bary_1*v1_col[3]/w1 + bary_2*v2_col[3]/w2 + bary_3*v3_col[3]/w3)/(bary_1/w1 + bary_2/w2 + bary_3/w3))*255);
 									// pixels[i + width*j] = SDL_MapRGBA(format, ((bary_1*v1_col[0]*z1 + bary_2*v2_col[0]*z2 + bary_3*v3_col[0]*z3)/(bary_1*z1 + bary_2*z2 + bary_3*z3))*255, ((bary_1*v1_col[1]*z1 + bary_2*v2_col[1]*z2 + bary_3*v3_col[1]*z3)/(bary_1*z1 + bary_2*z2 + bary_3*z3))*255, ((bary_1*v1_col[2]*z1 + bary_2*v2_col[2]*z2 + bary_3*v3_col[2]*z3)/(bary_1*z1 + bary_2*z2 + bary_3*z3))*255, ((bary_1*v1_col[3]*z1 + bary_2*v2_col[3]*z2 + bary_3*v3_col[3]*z3)/(bary_1*z1 + bary_2*z2 + bary_3*z3))*255);
 
 								}
