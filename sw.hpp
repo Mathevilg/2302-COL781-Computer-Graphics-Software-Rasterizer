@@ -31,6 +31,8 @@ namespace COL781 {
 			std::map<std::string,void*> values;
 		};
 
+
+
 		/* A vertex shader is a function that:
 		   reads the uniform variables and one vertex's input attributes,
 		   writes the output attributes for interpolation to fragments,
