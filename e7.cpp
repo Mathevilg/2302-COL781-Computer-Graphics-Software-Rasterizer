@@ -126,7 +126,7 @@ void createFlag(R::Rasterizer &r, R::ShaderProgram &program, R::Object &flagPole
 int main() {
 	R::Rasterizer r;
 	int width = 480, height = 480;
-    if (!r.initialize("Example 6", width, height))
+    if (!r.initialize("Example 7", width, height))
         return EXIT_FAILURE;
 
     R::ShaderProgram program = r.createShaderProgram(
